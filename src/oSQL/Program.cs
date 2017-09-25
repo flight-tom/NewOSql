@@ -69,44 +69,48 @@ namespace oSQL
                 sql_script_content = sql_script_content.Replace("\t", " ");
                 sql_script_content = sql_script_content.Replace("go", "\t").Replace("GO", "\t");
                 bool has_error = false;
-                while (true)
+                using (var sw = new StreamWriter(log_path, true))
                 {
-                    int encounter_error = 0;
-                    try
+                    while (true)
                     {
-                        using (var conn = new SqlConnection(sql_connection_string))
+                        int encounter_error = 0;
+                        try
                         {
-                            conn.Open();
-                            foreach (var sql in sql_script_content.Split('\t'))
-                                try
-                                {
-                                    using (var cmd = conn.CreateCommand())
+                            using (var conn = new SqlConnection(sql_connection_string))
+                            {
+                                conn.Open();
+                                foreach (var sql in sql_script_content.Split('\t'))
+                                    try
                                     {
-                                        cmd.CommandText = sql;
-                                        cmd.CommandType = CommandType.Text;
-                                        cmd.ExecuteNonQuery();
+                                        sw.WriteLine(sql);
+                                        using (var cmd = conn.CreateCommand())
+                                        {
+                                            cmd.CommandText = sql;
+                                            cmd.CommandType = CommandType.Text;
+                                            cmd.ExecuteNonQuery();
+                                        }
                                     }
-                                }
-                                catch (Exception ex)
-                                {
-                                    Console.Error.WriteLine(ex.Message);
-                                    has_error = true;
-                                }
-                            conn.Close();
+                                    catch (Exception ex)
+                                    {
+                                        Console.Error.WriteLine(ex.Message);
+                                        has_error = true;
+                                    }
+                                conn.Close();
+                            }
+                            break;
                         }
-                        break;
-                    }
-                    catch (SqlException sqlEx)
-                    {
-                        Console.Error.WriteLine(sqlEx.Message);
-                        if (encounter_error < 3)
+                        catch (SqlException sqlEx)
                         {
-                            Console.WriteLine("Encounter SQL error, wait 5 seconds and retry....");
-                            encounter_error++;
-                            Thread.Sleep(5 * 1000);
+                            Console.Error.WriteLine(sqlEx.Message);
+                            if (encounter_error < 3)
+                            {
+                                Console.WriteLine("Encounter SQL error, wait 5 seconds and retry....");
+                                encounter_error++;
+                                Thread.Sleep(5 * 1000);
+                            }
+                            else
+                                throw;
                         }
-                        else
-                            throw;
                     }
                 }
                 //if (has_error)
