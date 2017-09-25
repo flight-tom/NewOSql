@@ -3,6 +3,8 @@ using System.Data;
 using System.Data.SqlClient;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
+using System.Threading;
 
 namespace oSQL
 {
@@ -58,37 +60,57 @@ namespace oSQL
                     server_ip, dest_database, db_account, db_password);
                 string sql_script_content = null;
                 Console.WriteLine(string.Format("Processing object for {0} ......", sql_path));
-                using (var sr = new StreamReader(sql_path))
+                using (var sr = new StreamReader(sql_path, Encoding.UTF8))
                 {
                     sql_script_content = sr.ReadToEnd();
                     sr.Close();
                 }
                 // normalize content
-                sql_script_content = sql_script_content.Replace("\t", " ").ToLower();
-                sql_script_content = sql_script_content.Replace("go", "\t");
+                sql_script_content = sql_script_content.Replace("\t", " ");
+                sql_script_content = sql_script_content.Replace("go", "\t").Replace("GO", "\t");
                 bool has_error = false;
-                using (var conn = new SqlConnection(sql_connection_string))
+                while (true)
                 {
-                    conn.Open();
-                    foreach (var sql in sql_script_content.Split('\t'))
-                        try
+                    int encounter_error = 0;
+                    try
+                    {
+                        using (var conn = new SqlConnection(sql_connection_string))
                         {
-                            using (var cmd = conn.CreateCommand())
-                            {
-                                cmd.CommandText = sql;
-                                cmd.CommandType = CommandType.Text;
-                                cmd.ExecuteNonQuery();
-                            }
+                            conn.Open();
+                            foreach (var sql in sql_script_content.Split('\t'))
+                                try
+                                {
+                                    using (var cmd = conn.CreateCommand())
+                                    {
+                                        cmd.CommandText = sql;
+                                        cmd.CommandType = CommandType.Text;
+                                        cmd.ExecuteNonQuery();
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.Error.WriteLine(ex.Message);
+                                    has_error = true;
+                                }
+                            conn.Close();
                         }
-                        catch (Exception ex)
+                        break;
+                    }
+                    catch (SqlException sqlEx)
+                    {
+                        Console.Error.WriteLine(sqlEx.Message);
+                        if (encounter_error < 3)
                         {
-                            Console.Error.WriteLine(ex.Message);
-                            has_error = true;
+                            Console.WriteLine("Encounter SQL error, wait 5 seconds and retry....");
+                            encounter_error++;
+                            Thread.Sleep(5 * 1000);
                         }
-                    conn.Close();
+                        else
+                            throw;
+                    }
                 }
-                if (has_error)
-                    throw new ApplicationException("Some scripts were running with error, please check out!");
+                //if (has_error)
+                //    throw new ApplicationException("Some scripts were running with error, please check out!");
             }
             else
                 ShowHelp();
