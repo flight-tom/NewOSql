@@ -60,14 +60,14 @@ namespace oSQL
                     server_ip, dest_database, db_account, db_password);
                 string sql_script_content = null;
                 Console.WriteLine(string.Format("Processing object for {0} ......", sql_path));
-                using (var sr = new StreamReader(sql_path, Encoding.UTF8))
+                using (var sr = new StreamReader(sql_path, true))
                 {
                     sql_script_content = sr.ReadToEnd();
                     sr.Close();
                 }
                 // normalize content
                 sql_script_content = sql_script_content.Replace("\t", " ");
-                sql_script_content = sql_script_content.Replace("go", "\t").Replace("GO", "\t");
+                sql_script_content = sql_script_content.Replace("GO\r\n", "\t").Replace("go\r\n", "\t");
                 bool has_error = false;
                 using (var sw = new StreamWriter(log_path, true))
                 {
