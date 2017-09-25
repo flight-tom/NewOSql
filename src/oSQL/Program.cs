@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Data;
 using System.Data.SqlClient;
+using System.Diagnostics;
 using System.IO;
 
 namespace oSQL
@@ -9,84 +10,88 @@ namespace oSQL
     {
         static void Main(string[] args)
         {
-            try
+            ShowHelp();
+            string server_ip = null, db_account = null, db_password = null, log_path = null, sql_path = null, dest_database = null;
+            if (args.Length > 0)
             {
-                string server_ip = null, db_account = null, db_password = null, log_path = null, sql_path = null, dest_database = null;
-                if (args.Length > 0)
+                for (int i = 0; i < args.Length; i++)
                 {
-                    for (int i = 0; i < args.Length; i++)
+                    var arg = args[i];
+                    if (arg.StartsWith("-"))
                     {
-                        var arg = args[i];
-                        if (arg.StartsWith("-"))
+                        switch (arg.ToLower())
                         {
-                            switch (arg.ToLower())
+                            case "-s":
+                                server_ip = args[i + 1];
+                                break;
+                            case "-u":
+                                db_account = args[i + 1];
+                                break;
+                            case "-p":
+                                db_password = args[i + 1];
+                                break;
+                            case "-o":
+                                log_path = args[i + 1];
+                                break;
+                            case "-i":
+                                sql_path = args[i + 1];
+                                break;
+                            case "-d":
+                                dest_database = args[i + 1];
+                                break;
+                        }
+                    }
+                    else
+                        continue;
+                }
+                DateTime now = DateTime.Now;
+                Console.WriteLine(string.Format("[{0}] - Current Directory : {1}", now, Environment.CurrentDirectory));
+                Console.WriteLine(string.Format("[{0}] - SQL CENTRAL Script Directory : ", now));
+                Console.WriteLine(string.Format("[{0}] - Source Database Script Folder : {1}", now, sql_path));
+                Console.WriteLine(string.Format("[{0}] - Target Database IP or FQDN : {1}", now, server_ip));
+                Console.WriteLine(string.Format("[{0}] - Database Access Username : {1}", now, db_account));
+                Console.WriteLine(string.Format("[{0}] - Database Access Password : {1}", now, db_password));
+                Console.WriteLine(string.Format("[{0}] - Database Name : {1}", now, dest_database));
+                Console.WriteLine(string.Format("[{0}] - Deployment Output File Name : {1}", now, log_path));
+                Console.WriteLine(string.Format("[{0}] - SQL Connection Command : OSQL.EXE -S {1} -U {2} -P {3}  -o {4} -i [SQL Input File Name]", now, server_ip, db_account, db_password, log_path));
+                string sql_connection_string = string.Format("Data Source={0};Initial Catalog={1};Persist Security Info=True;User ID={2};Password={3}",
+                    server_ip, dest_database, db_account, db_password);
+                string sql_script_content = null;
+                Console.WriteLine(string.Format("Processing object for {0} ......", sql_path));
+                using (var sr = new StreamReader(sql_path))
+                {
+                    sql_script_content = sr.ReadToEnd();
+                    sr.Close();
+                }
+                // normalize content
+                sql_script_content = sql_script_content.Replace("\t", " ").ToLower();
+                sql_script_content = sql_script_content.Replace("go", "\t");
+                bool has_error = false;
+                using (var conn = new SqlConnection(sql_connection_string))
+                {
+                    conn.Open();
+                    foreach (var sql in sql_script_content.Split('\t'))
+                        try
+                        {
+                            using (var cmd = conn.CreateCommand())
                             {
-                                case "-s":
-                                    server_ip = args[i + 1];
-                                    break;
-                                case "-u":
-                                    db_account = args[i + 1];
-                                    break;
-                                case "-p":
-                                    db_password = args[i + 1];
-                                    break;
-                                case "-o":
-                                    log_path = args[i + 1];
-                                    break;
-                                case "-i":
-                                    sql_path = args[i + 1];
-                                    break;
-                                case "-d":
-                                    dest_database = args[i + 1];
-                                    break;
+                                cmd.CommandText = sql;
+                                cmd.CommandType = CommandType.Text;
+                                cmd.ExecuteNonQuery();
                             }
                         }
-                        else
-                            continue;
-                    }
-                    string sql_connection_string = string.Format("Data Source={0};Initial Catalog={1};Persist Security Info=True;User ID={2};Password={3}",
-                        server_ip, dest_database, db_account, db_password);
-                    string sql_script_content = null;
-                    using (var sr = new StreamReader(sql_path))
-                    {
-                        sql_script_content = sr.ReadToEnd();
-                        sr.Close();
-                    }
-                    // normalize content
-                    sql_script_content = sql_script_content.Replace("\t", " ").ToLower();
-                    sql_script_content = sql_script_content.Replace("go", "\t");
-                    bool has_error = false;
-                    using (var conn = new SqlConnection(sql_connection_string))
-                    {
-                        conn.Open();
-                        foreach (var sql in sql_script_content.Split('\t'))
-                            try
-                            {
-                                using (var cmd = conn.CreateCommand())
-                                {
-                                    cmd.CommandText = sql;
-                                    cmd.CommandType = CommandType.Text;
-                                    cmd.ExecuteNonQuery();
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.Error.WriteLine(ex);
-                                has_error = true;
-                            } 
-                        conn.Close();
-                    }
-                    if (has_error)
-                        throw new ApplicationException("Some scripts were running with error, please check out!");
+                        catch (Exception ex)
+                        {
+                            Console.Error.WriteLine(ex.Message);
+                            has_error = true;
+                        }
+                    conn.Close();
                 }
-                else
-                    ShowHelp();
+                if (has_error)
+                    throw new ApplicationException("Some scripts were running with error, please check out!");
             }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine(ex);
-                throw;
-            }
+            else
+                ShowHelp();
         }
 
         private static void ShowHelp()
