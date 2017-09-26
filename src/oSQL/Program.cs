@@ -69,7 +69,7 @@ namespace oSQL
                 sql_script_content = sql_script_content.Replace("\t", " ");
                 sql_script_content = sql_script_content.Replace("GO\r\n", "\t").Replace("go\r\n", "\t");
                 bool has_error = false;
-                using (var sw = new StreamWriter(log_path, true))
+                using (var sw = new StreamWriter(log_path))
                 {
                     while (true)
                     {
