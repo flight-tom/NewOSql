@@ -82,17 +82,20 @@ namespace oSQL
                                 foreach (var sql in sql_script_content.Split('\t'))
                                     try
                                     {
-                                        sw.WriteLine(sql);
-                                        using (var cmd = conn.CreateCommand())
+                                        if (!string.IsNullOrEmpty(sql))
                                         {
-                                            cmd.CommandText = sql;
-                                            cmd.CommandType = CommandType.Text;
-                                            cmd.ExecuteNonQuery();
+                                            sw.WriteLine(sql);
+                                            using (var cmd = conn.CreateCommand())
+                                            {
+                                                cmd.CommandText = sql;
+                                                cmd.CommandType = CommandType.Text;
+                                                cmd.ExecuteNonQuery();
+                                            }
                                         }
                                     }
                                     catch (Exception ex)
                                     {
-                                        Console.Error.WriteLine(ex.Message);
+                                        Console.Error.WriteLine(sql_path + " : " + ex.Message);
                                         has_error = true;
                                     }
                                 conn.Close();
