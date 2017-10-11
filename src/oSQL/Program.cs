@@ -46,6 +46,9 @@ namespace oSQL
                     else
                         continue;
                 }
+
+                if (string.IsNullOrEmpty(sql_path)) return;
+
                 DateTime now = DateTime.Now;
                 Console.WriteLine(string.Format("[{0}] - Current Directory : {1}", now, Environment.CurrentDirectory));
                 Console.WriteLine(string.Format("[{0}] - SQL CENTRAL Script Directory : ", now));
