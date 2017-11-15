@@ -12,7 +12,6 @@ namespace oSQL
     {
         static void Main(string[] args)
         {
-            ShowHelp();
             string server_ip = null, db_account = null, db_password = null, log_path = null, sql_path = null, dest_database = null;
             if (args.Length > 0)
             {
@@ -50,15 +49,15 @@ namespace oSQL
                 if (string.IsNullOrEmpty(sql_path)) return;
 
                 DateTime now = DateTime.Now;
-                Console.WriteLine(string.Format("[{0}] - Current Directory : {1}", now, Environment.CurrentDirectory));
-                Console.WriteLine(string.Format("[{0}] - SQL CENTRAL Script Directory : ", now));
-                Console.WriteLine(string.Format("[{0}] - Source Database Script Folder : {1}", now, sql_path));
-                Console.WriteLine(string.Format("[{0}] - Target Database IP or FQDN : {1}", now, server_ip));
-                Console.WriteLine(string.Format("[{0}] - Database Access Username : {1}", now, db_account));
-                Console.WriteLine(string.Format("[{0}] - Database Access Password : {1}", now, db_password));
-                Console.WriteLine(string.Format("[{0}] - Database Name : {1}", now, dest_database));
-                Console.WriteLine(string.Format("[{0}] - Deployment Output File Name : {1}", now, log_path));
-                Console.WriteLine(string.Format("[{0}] - SQL Connection Command : OSQL.EXE -S {1} -U {2} -P {3}  -o {4} -i [SQL Input File Name]", now, server_ip, db_account, db_password, log_path));
+                //Console.WriteLine(string.Format("[{0}] - Current Directory : {1}", now, Environment.CurrentDirectory));
+                //Console.WriteLine(string.Format("[{0}] - SQL CENTRAL Script Directory : ", now));
+                //Console.WriteLine(string.Format("[{0}] - Source Database Script Folder : {1}", now, sql_path));
+                //Console.WriteLine(string.Format("[{0}] - Target Database IP or FQDN : {1}", now, server_ip));
+                //Console.WriteLine(string.Format("[{0}] - Database Access Username : {1}", now, db_account));
+                //Console.WriteLine(string.Format("[{0}] - Database Access Password : {1}", now, db_password));
+                //Console.WriteLine(string.Format("[{0}] - Database Name : {1}", now, dest_database));
+                //Console.WriteLine(string.Format("[{0}] - Deployment Output File Name : {1}", now, log_path));
+                //Console.WriteLine(string.Format("[{0}] - SQL Connection Command : OSQL.EXE -S {1} -U {2} -P {3}  -o {4} -i [SQL Input File Name]", now, server_ip, db_account, db_password, log_path));
                 string sql_connection_string = string.Format("Data Source={0};Initial Catalog={1};Persist Security Info=True;User ID={2};Password={3}",
                     server_ip, dest_database, db_account, db_password);
                 string sql_script_content = null;
@@ -87,7 +86,7 @@ namespace oSQL
                                     {
                                         if (!string.IsNullOrEmpty(sql))
                                         {
-                                            sw.WriteLine(sql);
+                                            //sw.WriteLine(sql);
                                             using (var cmd = conn.CreateCommand())
                                             {
                                                 cmd.CommandText = sql;
@@ -99,6 +98,7 @@ namespace oSQL
                                     catch (Exception ex)
                                     {
                                         Console.Error.WriteLine(sql_path + " : " + ex.Message);
+                                        Console.WriteLine(sql_path + " : " + ex.Message);
                                         has_error = true;
                                     }
                                 conn.Close();
@@ -110,7 +110,7 @@ namespace oSQL
                             Console.Error.WriteLine(sqlEx.Message);
                             if (encounter_error < 3)
                             {
-                                Console.WriteLine("Encounter SQL error, wait 5 seconds and retry....");
+                                Console.Error.WriteLine("Encounter SQL error, wait 5 seconds and retry....");
                                 encounter_error++;
                                 Thread.Sleep(5 * 1000);
                             }
