@@ -97,8 +97,8 @@ namespace oSQL
                                     }
                                     catch (Exception ex)
                                     {
-                                        Console.Error.WriteLine(sql_path + " : " + ex.Message);
-                                        Console.WriteLine(sql_path + " : " + ex.Message);
+                                        Console.Error.WriteLine("ERROR : " + sql_path + " : " + ex.Message);
+                                        Console.WriteLine("ERROR : " + sql_path + " : " + ex.Message);
                                         has_error = true;
                                     }
                                 conn.Close();
@@ -107,7 +107,7 @@ namespace oSQL
                         }
                         catch (SqlException sqlEx)
                         {
-                            Console.Error.WriteLine(sqlEx.Message);
+                            Console.Error.WriteLine("ERROR : " + sqlEx.Message);
                             if (encounter_error < 3)
                             {
                                 Console.Error.WriteLine("Encounter SQL error, wait 5 seconds and retry....");
@@ -119,8 +119,8 @@ namespace oSQL
                         }
                     }
                 }
-                //if (has_error)
-                //    throw new ApplicationException("Some scripts were running with error, please check out!");
+                if (has_error)
+                    throw new ApplicationException("Some scripts were running with error, please check out!");
             }
             else
                 ShowHelp();
