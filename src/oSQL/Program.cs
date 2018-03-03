@@ -119,8 +119,8 @@ namespace oSQL
                         }
                     }
                 }
-                if (has_error)
-                    throw new ApplicationException("Some scripts were running with error, please check out!");
+                //if (has_error)
+                //    throw new ApplicationException("Some scripts were running with error, please check out!");
             }
             else
                 ShowHelp();
