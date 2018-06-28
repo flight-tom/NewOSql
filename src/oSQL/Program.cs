@@ -91,6 +91,7 @@ namespace oSQL
                                             {
                                                 cmd.CommandText = sql;
                                                 cmd.CommandType = CommandType.Text;
+                                                cmd.CommandTimeout = 5 * 60;
                                                 cmd.ExecuteNonQuery();
                                             }
                                         }
