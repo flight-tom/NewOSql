@@ -70,6 +70,9 @@ namespace oSQL
                 // normalize content
                 sql_script_content = sql_script_content.Replace("\t", " ");
                 sql_script_content = sql_script_content.Replace("GO\r\n", "\t").Replace("go\r\n", "\t");
+                if (sql_script_content.EndsWith("GO")) 
+                    sql_script_content = sql_script_content.Substring(0, sql_script_content.Length - "GO".Length);
+
                 bool has_error = false;
                 using (var sw = new StreamWriter(log_path))
                 {
