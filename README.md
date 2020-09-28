@@ -1,13 +1,13 @@
 # NewOSql
 A replacement for old oSQL.exe with SQL server
 
-# Introduce
+## Introduce
 
 oSQL.exe was a tiny tool for executing sql script in CLI. Unfortunately, it doesn't support unicode and UTF8 files...
 
 This is the reason why I make this one for supporting unicode.
 
-=== How to use ===
+### How to use
 ```
 **oSQL.exe**
  License: Apache 2.0
