@@ -1,9 +1,7 @@
 ﻿using System;
 using System.Data;
 using System.Data.SqlClient;
-using System.Diagnostics;
 using System.IO;
-using System.Text;
 using System.Threading;
 
 namespace oSQL
@@ -48,7 +46,7 @@ namespace oSQL
 
                 if (string.IsNullOrEmpty(sql_path)) return;
 
-                DateTime now = DateTime.Now;
+                //DateTime now = DateTime.Now;
                 //Console.WriteLine(string.Format("[{0}] - Current Directory : {1}", now, Environment.CurrentDirectory));
                 //Console.WriteLine(string.Format("[{0}] - SQL CENTRAL Script Directory : ", now));
                 //Console.WriteLine(string.Format("[{0}] - Source Database Script Folder : {1}", now, sql_path));
@@ -88,8 +86,6 @@ namespace oSQL
                                     try
                                     {
                                         if (!string.IsNullOrEmpty(sql))
-                                        {
-                                            //sw.WriteLine(sql);
                                             using (var cmd = conn.CreateCommand())
                                             {
                                                 cmd.CommandText = sql;
@@ -97,7 +93,6 @@ namespace oSQL
                                                 cmd.CommandTimeout = 0;
                                                 cmd.ExecuteNonQuery();
                                             }
-                                        }
                                     }
                                     catch (Exception ex)
                                     {
