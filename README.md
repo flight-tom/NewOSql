@@ -16,5 +16,5 @@ This is the reason why I make this one for supporting unicode.
 Usage:
 oSQL.exe -S [Server IP] -U [db account] -P [db password] -o [log file path] -i [sql script file path] -d [destination database]
 Sample:
-OSQL.EXE -S 127.0.0.1 -U sa -P p@ssw0rd  -o .\\CPBU_SQLDEPLOY.LOG -i \"database\\10_tables\\00.table_create.sql\" -d SampleDB
+OSQL.EXE -S 127.0.0.1 -U sa -P p@ssw0rd  -o .\CPBU_SQLDEPLOY.LOG -i database\10_tables\00.table_create.sql -d SampleDB
 ```
