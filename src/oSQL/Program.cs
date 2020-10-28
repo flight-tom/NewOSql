@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
 using System.IO;
+using System.Text;
 using System.Threading;
 
 namespace oSQL
@@ -10,7 +12,8 @@ namespace oSQL
     {
         static void Main(string[] args)
         {
-            string server_ip = null, db_account = null, db_password = null, log_path = null, sql_path = null, dest_database = null;
+            string server_ip = null, db_account = null, db_password = null, log_path = null, sql_path = null, dest_database = null, export_path = null;
+            bool is_export = false;
             if (args.Length > 0)
             {
                 for (int i = 0; i < args.Length; i++)
@@ -38,6 +41,10 @@ namespace oSQL
                             case "-d":
                                 dest_database = args[i + 1];
                                 break;
+                            case "-e":
+                                is_export = true;
+                                export_path = args[i + 1];
+                                break;
                         }
                     }
                     else
@@ -49,6 +56,12 @@ namespace oSQL
                     var logFile = new FileInfo(log_path);
                     if (logFile.Exists) logFile.Delete();
                     sw = logFile.CreateText();
+                }
+                FileInfo exportFile = null;
+                if (!string.IsNullOrEmpty(export_path))
+                {
+                    exportFile = new FileInfo(export_path);
+                    if (exportFile.Exists) exportFile.Delete();
                 }
 
                 if (string.IsNullOrEmpty(sql_path)) return;
@@ -96,7 +109,62 @@ namespace oSQL
                                             cmd.CommandType = CommandType.Text;
                                             cmd.CommandText = sql;
                                             cmd.CommandTimeout = 0;
-                                            cmd.ExecuteNonQuery();
+                                            if (!is_export)
+                                            {
+                                                cmd.ExecuteNonQuery();
+                                            }
+                                            else
+                                            {
+                                                #region security check
+                                                var tmp = sql.ToUpper();
+                                                if (tmp.Contains("INSERT") || tmp.Contains("DELETE") || tmp.Contains("UPDATE") || tmp.Contains("DROP") || tmp.Contains("CREATE"))
+                                                    throw new ArgumentException("You are using export argument to query result. This sql can't have any other kind statement beside SELECT\r\n. INSERT, UPDATE, DROP, CREATE or DELETE are all Inappropriated.");
+                                                if (!tmp.StartsWith("SELECT"))
+                                                    throw new ArgumentException("You have start with \"SELECT\" when using the export feature.");
+                                                #endregion
+
+                                                DataTable dt = new DataTable();
+                                                using (var da = new SqlDataAdapter())
+                                                {
+                                                    da.SelectCommand = cmd;
+                                                    da.Fill(dt);
+                                                }
+
+                                                if (null != exportFile)
+                                                    using (var export_sw = new StreamWriter(exportFile.Create(), Encoding.Default))
+                                                    {
+                                                        for (int i = 0; i < dt.Columns.Count; i++)
+                                                        {
+                                                            DataColumn c = dt.Columns[i];
+                                                            if (0 == i)
+                                                                export_sw.Write("\"" + c.ColumnName + "\"");
+                                                            else
+                                                                export_sw.Write(",\"" + c.ColumnName + "\"");
+                                                        }
+                                                        export_sw.WriteLine();
+
+                                                        foreach (DataRow dr in dt.Rows)
+                                                        {
+                                                            List<string> ss = new List<string>();
+                                                            for (int i = 0; i < dt.Columns.Count; i++)
+                                                            {
+                                                                var obj = dr[dt.Columns[i].ColumnName];
+                                                                var t = obj.GetType();
+                                                                if (t == typeof(DateTime))
+                                                                    ss.Add(string.Format("\"{0}\"", ((DateTime)obj).ToShortDateString()));
+                                                                else if (double.TryParse(obj.ToString(), out _))
+                                                                    ss.Add(obj.ToString());
+                                                                else
+                                                                    ss.Add(string.Format("\"{0}\"", obj.ToString().Replace("\"", "\"\"")));
+                                                            }
+                                                            var s = string.Join<string>(",", ss.ToArray());
+                                                            export_sw.WriteLine(s);
+                                                        }
+                                                        export_sw.Close();
+                                                    }
+                                                else
+                                                    throw new ArgumentNullException("You didn't specify a file path for exporting!", "exportFile");
+                                            }
                                         }
                                 }
                                 catch (Exception ex)
@@ -142,7 +210,7 @@ namespace oSQL
             Console.WriteLine(" Author: Tom Tang <tomtang0406@gmail.com>");
             Console.WriteLine("==========================================");
             Console.WriteLine("Usage:");
-            Console.WriteLine("oSQL.exe -S [Server IP] -U [db account] -P [db password] -o [log file path] -i [sql script file path] -d [destination database]");
+            Console.WriteLine("oSQL.exe -S [Server IP] -U [db account] -P [db password] -o [log file path] -i [sql script file path] -d [destination database] -e [export file path]");
             Console.WriteLine("Sample:");
             Console.WriteLine("OSQL.EXE -S ./SQLEXPRESS -U sa -P p@ssw0rd  -o .\\CPBU_SQLDEPLOY.LOG -i \"database\\10_tables\\00.table_create.sql\" -d SampleDB");
         }
