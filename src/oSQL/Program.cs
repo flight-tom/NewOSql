@@ -43,6 +43,13 @@ namespace oSQL
                     else
                         continue;
                 }
+                StreamWriter sw = null;
+                if (!string.IsNullOrEmpty(log_path))
+                {
+                    var logFile = new FileInfo(log_path);
+                    if (logFile.Exists) logFile.Delete();
+                    sw = logFile.CreateText();
+                }
 
                 if (string.IsNullOrEmpty(sql_path)) return;
 
@@ -59,7 +66,7 @@ namespace oSQL
                 string sql_connection_string = string.Format("Data Source={0};Initial Catalog={1};Persist Security Info=True;User ID={2};Password={3}",
                     server_ip, dest_database, db_account, db_password);
                 string sql_script_content = null;
-                Console.WriteLine(string.Format("Processing object for {0} ......", sql_path));
+                LogMessage(ref sw, string.Format("Processing object for {0} ......", sql_path));
                 using (var sr = new StreamReader(sql_path, true))
                 {
                     sql_script_content = sr.ReadToEnd();
@@ -68,61 +75,64 @@ namespace oSQL
                 // normalize content
                 sql_script_content = sql_script_content.Replace("\t", " ");
                 sql_script_content = sql_script_content.Replace("GO\r\n", "\t").Replace("go\r\n", "\t");
-                if (sql_script_content.EndsWith("GO")) 
+                if (sql_script_content.EndsWith("GO"))
                     sql_script_content = sql_script_content.Substring(0, sql_script_content.Length - "GO".Length);
 
                 bool has_error = false;
-                using (var sw = new StreamWriter(log_path))
+                while (true)
                 {
-                    while (true)
+                    int encounter_error = 0;
+                    try
                     {
-                        int encounter_error = 0;
-                        try
+                        using (var conn = new SqlConnection(sql_connection_string))
                         {
-                            using (var conn = new SqlConnection(sql_connection_string))
-                            {
-                                conn.Open();
-                                foreach (var sql in sql_script_content.Split('\t'))
-                                    try
-                                    {
-                                        if (!string.IsNullOrEmpty(sql))
-                                            using (var cmd = conn.CreateCommand())
-                                            {
-                                                cmd.CommandText = sql;
-                                                cmd.CommandType = CommandType.Text;
-                                                cmd.CommandTimeout = 0;
-                                                cmd.ExecuteNonQuery();
-                                            }
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        Console.Error.WriteLine("ERROR : " + sql_path + " : " + ex.Message);
-                                        Console.WriteLine("ERROR : " + sql_path + " : " + ex.Message);
-                                        has_error = true;
-                                    }
-                                conn.Close();
-                            }
-                            break;
+                            conn.Open();
+                            foreach (var sql in sql_script_content.Split('\t'))
+                                try
+                                {
+                                    if (!string.IsNullOrEmpty(sql))
+                                        using (var cmd = conn.CreateCommand())
+                                        {
+                                            cmd.CommandType = CommandType.Text;
+                                            cmd.CommandText = sql;
+                                            cmd.CommandTimeout = 0;
+                                            cmd.ExecuteNonQuery();
+                                        }
+                                }
+                                catch (Exception ex)
+                                {
+                                    LogMessage(ref sw, "ERROR : " + sql_path + " : " + ex.Message);
+                                    has_error = true;
+                                }
+                            conn.Close();
                         }
-                        catch (SqlException sqlEx)
+                        break;
+                    }
+                    catch (SqlException sqlEx)
+                    {
+                        LogMessage(ref sw, "ERROR : " + sqlEx.Message);
+                        if (encounter_error < 3)
                         {
-                            Console.Error.WriteLine("ERROR : " + sqlEx.Message);
-                            if (encounter_error < 3)
-                            {
-                                Console.Error.WriteLine("Encounter SQL error, wait 5 seconds and retry....");
-                                encounter_error++;
-                                Thread.Sleep(5 * 1000);
-                            }
-                            else
-                                throw;
+                            LogMessage(ref sw, "Encounter SQL error, wait 5 seconds and retry....");
+                            encounter_error++;
+                            Thread.Sleep(5 * 1000);
                         }
+                        else
+                            throw;
                     }
                 }
+                if (null != sw) sw.Close();
                 //if (has_error)
                 //    throw new ApplicationException("Some scripts were running with error, please check out!");
             }
             else
                 ShowHelp();
+        }
+
+        private static void LogMessage(ref StreamWriter sw, string message)
+        {
+            if (null != sw) sw.WriteLine(message);
+            Console.Error.WriteLine(message);
         }
 
         private static void ShowHelp()
@@ -134,7 +144,7 @@ namespace oSQL
             Console.WriteLine("Usage:");
             Console.WriteLine("oSQL.exe -S [Server IP] -U [db account] -P [db password] -o [log file path] -i [sql script file path] -d [destination database]");
             Console.WriteLine("Sample:");
-            Console.WriteLine("OSQL.EXE -S 127.0.0.1 -U sa -P p@ssw0rd  -o .\\CPBU_SQLDEPLOY.LOG -i \"database\\10_tables\\00.table_create.sql\" -d SampleDB");
+            Console.WriteLine("OSQL.EXE -S ./SQLEXPRESS -U sa -P p@ssw0rd  -o .\\CPBU_SQLDEPLOY.LOG -i \"database\\10_tables\\00.table_create.sql\" -d SampleDB");
         }
     }
 }
