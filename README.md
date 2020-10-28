@@ -21,8 +21,7 @@ OSQL.EXE -S ./SQLEXPRESS -U sa -P p@ssw0rd  -o .\CPBU_SQLDEPLOY.LOG -i database\
 
 Updates
 -----------------------
-2020-10-28
-
+**2020-10-28:**
 We add one new feature that can export the query result to a new csv file.
 By security concern, when you enable this argument, you can give it a file contains **SELECT** statement only, any others could cause data changing are not allowed.
 AND **SELECT** must be the beginning in the file.
