@@ -49,7 +49,7 @@ namespace oSQL
                                         cmd.CommandType = CommandType.Text;
                                         cmd.CommandText = sql;
                                         cmd.CommandTimeout = 0;
-                                        if (!string.IsNullOrEmpty(option.ExportPath))
+                                        if (string.IsNullOrEmpty(option.ExportPath))
                                         {
                                             cmd.ExecuteNonQuery();
                                         }
