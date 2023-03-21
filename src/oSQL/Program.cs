@@ -158,10 +158,10 @@ namespace oSQL
 			}
 			// normalize content
 			sql_script_content = sql_script_content.Replace ("\t", " ");
-			sql_script_content = sql_script_content.Replace ("GO\r\n", "\t").Replace ("go\r\n", "\t");
+			sql_script_content = sql_script_content.Replace ($"GO{Environment.NewLine}", "\t").Replace ($"go{Environment.NewLine}", "\t");
 			if (sql_script_content.EndsWith ("GO"))
 				sql_script_content = sql_script_content.Substring (0, sql_script_content.Length - "GO".Length);
-			return sql_script_content;
+			return sql_script_content.Trim();
 		}
 
 		private static void LogMessage (string message) {
