@@ -157,10 +157,13 @@ namespace oSQL
 				sr.Close ();
 			}
 			// normalize content
-			sql_script_content = sql_script_content.Replace ("\t", " ");
-			sql_script_content = sql_script_content.Replace ($"GO{Environment.NewLine}", "\t").Replace ($"go{Environment.NewLine}", "\t");
+			sql_script_content = sql_script_content.Replace ("\t", " ").Replace("\r", string.Empty);
+			sql_script_content = sql_script_content.Replace ($"GO\n", "\t").Replace ($"go\n", "\t");
 			if (sql_script_content.EndsWith ("GO"))
 				sql_script_content = sql_script_content.Substring (0, sql_script_content.Length - "GO".Length);
+			if (sql_script_content.EndsWith ("go"))
+				sql_script_content = sql_script_content.Substring (0, sql_script_content.Length - "go".Length);
+
 			return sql_script_content.Trim();
 		}
 
@@ -173,6 +176,7 @@ namespace oSQL
 			Console.WriteLine ("**oSQL.exe**");
 			Console.WriteLine (" License: Apache 2.0");
 			Console.WriteLine (" Author: Tom Tang <tomtang0406@gmail.com>");
+			Console.WriteLine (" Runtime: dotnet standard 6.0");
 			Console.WriteLine ("==========================================");
 			Console.WriteLine ("Usage:");
 			Console.WriteLine ("oSQL.exe -S [Server IP] -U [db account] -P [db password] -o [log file path] -i [sql script file path] -d [destination database] -e [export file path]");
