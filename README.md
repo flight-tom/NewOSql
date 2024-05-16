@@ -14,9 +14,14 @@ This is the reason why I make this one for supporting unicode.
  Author: Tom Tang <tomtang0406@gmail.com>
 ==========================================
 Usage:
-oSQL.exe -S [Server IP] -U [db account] -P [db password] -o [log file path] -i [sql script file path] -d [destination database] -e [csv file path]
+Usage:
+oSQL.exe -s [Server IP] [-is:use integrated security| -u <account> -p <password>] -o [log file path] [-i <sql script file path> | -dir <folder path contains sql files>] [-renew: drop destination database and re-create] -d [destination database] -e [export file path]
+
 Sample:
-OSQL.EXE -S ./SQLEXPRESS -U sa -P p@ssw0rd  -o .\CPBU_SQLDEPLOY.LOG -i database\10_tables\00.table_create.sql -d SampleDB -e .\excel.csv
+OSQL.exe -S ./SQLEXPRESS -U sa -P p@ssw0rd  -o .\CPBU_SQLDEPLOY.LOG -i database\10_tables\00.table_create.sql -d SampleDB -e .\excel.csv
+OSQL.exe -s ./SQLEXPRESS -U sa -P p@ssw0rd  -o .\CPBU_SQLDEPLOY.LOG -i "database\10_tables\00.table_create.sql" -d SampleDB
+OSQL.exe -is  -o .\log.log -i "database\10_tables\00.table_create.sql" -d SampleDB
+OSQL.exe -is  -o .\log.log -dir "database" -renew -d SampleDB
 ```
 
 Updates
@@ -25,3 +30,11 @@ Updates
 We add one new feature that can export the query result to a new csv file.
 By security concern, when you enable this argument, you can give it a file contains **SELECT** statement only, any others could cause data changing are not allowed.
 AND **SELECT** must be the beginning in the file.
+
+**2024-05-16:**
+
+### New features: ###
+- can use integrated security now, prevent from exposing authentication information.
+- execute all sql files directly in recursive folders.
+- rebuild db by dropping and creating.
+- code refine into smaller pieces.
