@@ -9,11 +9,9 @@ namespace oSQL {
         public static StreamWriter? ExportFileSw { get; set; }
 
         private static void Main(string[] args) {
-            var option = new Option();
-            option.Setup(args);
             if (args.Length > 0) {
-                if (string.IsNullOrEmpty(option.SqlPath)) return;
-
+                var option = new Option();
+                option.Setup(args);
                 PrepareLogAndExportFile(option);
 
                 var sql_connection_string = PrepareConnectionString(option);
@@ -22,13 +20,13 @@ namespace oSQL {
                     var dir = new DirectoryInfo(option.SqlFolder);
                     if (dir.Exists)
                         RunAllSqlScripts(dir, option, sql_connection_string);
-                } else {
+                } else if (string.IsNullOrEmpty(option.SqlPath)) {
                     var file = new FileInfo(option.SqlPath);
                     if (file.Exists) {
                         if (string.IsNullOrEmpty(option.ExportPath))
-                            ExecuteSqlFile(file, sql_connection_string);
+                            ExecuteSqlFile(file, sql_connection_string, option);
                         else
-                            ExportData(file, sql_connection_string);
+                            ExportData(file, sql_connection_string, option);
                     }
                 }
 
@@ -39,10 +37,10 @@ namespace oSQL {
                 ShowHelp();
         }
 
-        private static void ExportData(FileInfo sqlFile, string sql_connection_string) {
+        private static void ExportData(FileInfo sqlFile, string sql_connection_string, Option option) {
             if (ExportFileSw is null)
                 throw new ArgumentNullException("You didn't specify a file path for exporting!", "exportFile");
-            var sql = ReadSql(sqlFile);
+            var sql = $"USE [{option.DestDatabase}]\n" + ReadSql(sqlFile);
             CodeScan(sql);
             using var conn = new SqlConnection(sql_connection_string);
             var cmd = conn.CreateCommand();
@@ -63,8 +61,8 @@ namespace oSQL {
             }
         }
 
-        private static void ExecuteSqlFile(FileInfo sqlFile, string sql_connection_string) {
-            var sql_script_content = ReadSql(sqlFile);
+        private static void ExecuteSqlFile(FileInfo sqlFile, string sql_connection_string, Option option) {
+            var sql_script_content = $"USE [{option.DestDatabase}]\n" + ReadSql(sqlFile);
 
             bool has_error = false;
             while (true) {
@@ -107,11 +105,11 @@ namespace oSQL {
 
             var sql_files = dir.GetFiles("*.sql");
             foreach (var file in sql_files)
-                ExecuteSqlFile(file, connectionString);
+                ExecuteSqlFile(file, connectionString, option);
         }
 
         private static void DropAndCreateNewDB(string sql_connection_string, Option option) {
-            ExecuteSql(sql_connection_string, $"DROP DATABASE [{option.DestDatabase}]");
+            ExecuteSql(sql_connection_string, $"IF DB_ID('{option.DestDatabase}') IS NOT NULL\nDROP DATABASE [{option.DestDatabase}]");
             ExecuteSql(sql_connection_string, $"CREATE DATABASE [{option.DestDatabase}]");
         }
 
@@ -128,8 +126,8 @@ namespace oSQL {
 
         private static string PrepareConnectionString(Option option) {
             return option.EnableIntegratedSecurity
-                ? $"Data Source={option.ServerIp};Initial Catalog={option.DestDatabase};Persist Security Info=True;Integrated Security=True"
-                : $"Data Source={option.ServerIp};Initial Catalog={option.DestDatabase};Persist Security Info=True;User ID={option.DbAccount};Password={option.DbPassword}";
+                ? $"Data Source={option.ServerIp};Initial Catalog=master;Persist Security Info=True;Integrated Security=True"
+                : $"Data Source={option.ServerIp};Initial Catalog=master;Persist Security Info=True;User ID={option.DbAccount};Password={option.DbPassword}";
         }
 
         private static void OutputResultToExportFile(SqlCommand cmd) {
