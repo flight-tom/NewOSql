@@ -14,7 +14,6 @@ This is the reason why I make this one for supporting unicode.
  Author: Tom Tang <tomtang0406@gmail.com>
 ==========================================
 Usage:
-Usage:
 oSQL.exe -s [Server IP] [-is:use integrated security| -u <account> -p <password>] -o [log file path] [-i <sql script file path> | -dir <folder path contains sql files>] [-renew: drop destination database and re-create] -d [destination database] -e [export file path]
 
 Sample:
