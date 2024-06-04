@@ -235,9 +235,9 @@ namespace oSQL {
             Console.WriteLine("Usage:");
             Console.WriteLine("oSQL.exe -s [Server IP] [-is:use integrated security| -u <account> -p <password>] -o [log file path] [-i <sql script file path> | -dir <folder path contains sql files>] [-renew: drop destination database and re-create] -d [destination database] -e [export file path]");
             Console.WriteLine("Sample:");
-            Console.WriteLine("OSQL.exe -s ./SQLEXPRESS -U sa -P p@ssw0rd  -o .\\CPBU_SQLDEPLOY.LOG -i \"database\\10_tables\\00.table_create.sql\" -d SampleDB");
-            Console.WriteLine("OSQL.exe -is  -o .\\log.log -i \"database\\10_tables\\00.table_create.sql\" -d SampleDB");
-            Console.WriteLine("OSQL.exe -is  -o .\\log.log -dir \"database\" -renew -d SampleDB");
+            Console.WriteLine("OSQL.exe -s .\\SQLEXPRESS -U sa -P p@ssw0rd  -o .\\CPBU_SQLDEPLOY.LOG -i \"database\\10_tables\\00.table_create.sql\" -d SampleDB");
+            Console.WriteLine("OSQL.exe -s .\\SQLEXPRESS -is  -o .\\log.log -i \"database\\10_tables\\00.table_create.sql\" -d SampleDB");
+            Console.WriteLine("OSQL.exe -s .\\SQLEXPRESS -is  -o .\\log.log -dir \"database\" -renew -d SampleDB");
         }
     }
 }
