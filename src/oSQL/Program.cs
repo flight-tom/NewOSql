@@ -98,14 +98,14 @@ namespace oSQL {
         }
 
         private static void RunAllSqlScripts(DirectoryInfo dir, Option option, string connectionString) {
-            var sub_dirs = dir.GetDirectories();
+			var sql_files = dir.GetFiles ("*.sql").OrderBy (d => d.Name);
+			foreach (var file in sql_files)
+				ExecuteSqlFile (file, connectionString, option);
+
+            var sub_dirs = dir.GetDirectories ().OrderBy (d => d.Name);
             if (sub_dirs.Any())
                 foreach (var sub in sub_dirs)
                     RunAllSqlScripts(sub, option, connectionString);
-
-            var sql_files = dir.GetFiles("*.sql");
-            foreach (var file in sql_files)
-                ExecuteSqlFile(file, connectionString, option);
         }
 
         private static void DropAndCreateNewDB(string sql_connection_string, Option option) {
@@ -226,18 +226,19 @@ namespace oSQL {
             Console.Error.WriteLine(message);
         }
 
-        private static void ShowHelp() {
-            Console.WriteLine("**oSQL.exe**");
-            Console.WriteLine(" License: Apache 2.0");
-            Console.WriteLine(" Author: Tom Tang <tomtang0406@gmail.com>");
-            Console.WriteLine(" Runtime: dotnet standard 6.0");
-            Console.WriteLine("==========================================");
-            Console.WriteLine("Usage:");
-            Console.WriteLine("oSQL.exe -s [Server IP] [-is:use integrated security| -u <account> -p <password>] -o [log file path] [-i <sql script file path> | -dir <folder path contains sql files>] [-renew: drop destination database and re-create] -d [destination database] -e [export file path]");
-            Console.WriteLine("Sample:");
-            Console.WriteLine("OSQL.exe -s .\\SQLEXPRESS -U sa -P p@ssw0rd  -o .\\CPBU_SQLDEPLOY.LOG -i \"database\\10_tables\\00.table_create.sql\" -d SampleDB");
-            Console.WriteLine("OSQL.exe -s .\\SQLEXPRESS -is  -o .\\log.log -i \"database\\10_tables\\00.table_create.sql\" -d SampleDB");
-            Console.WriteLine("OSQL.exe -s .\\SQLEXPRESS -is  -o .\\log.log -dir \"database\" -renew -d SampleDB");
+        private static void ShowHelp () {
+            Console.WriteLine ("**oSQL.exe**");
+            Console.WriteLine (" License: Apache 2.0");
+            Console.WriteLine (" Author: Tom Tang <tomtang0406@gmail.com>");
+            Console.WriteLine (" Runtime: dotnet standard 6.0");
+            Console.WriteLine (" Version: 2.0.0.1");
+            Console.WriteLine ("==========================================");
+            Console.WriteLine ("Usage:");
+            Console.WriteLine ("oSQL.exe -s [Server IP] [-is:use integrated security| -u <account> -p <password>] -o [log file path] [-i <sql script file path> | -dir <folder path contains sql files>] [-renew: drop destination database and re-create] -d [destination database] -e [export file path]");
+            Console.WriteLine ("Sample:");
+            Console.WriteLine ("OSQL.exe -s .\\SQLEXPRESS -U sa -P p@ssw0rd  -o .\\CPBU_SQLDEPLOY.LOG -i \"database\\10_tables\\00.table_create.sql\" -d SampleDB");
+            Console.WriteLine ("OSQL.exe -s .\\SQLEXPRESS -is  -o .\\log.log -i \"database\\10_tables\\00.table_create.sql\" -d SampleDB");
+            Console.WriteLine ("OSQL.exe -s .\\SQLEXPRESS -is  -o .\\log.log -dir \"database\" -renew -d SampleDB");
         }
     }
 }
