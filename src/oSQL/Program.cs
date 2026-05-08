@@ -4,9 +4,9 @@ using System.Text;
 
 namespace oSQL {
 
-    internal class Program {
-        public static StreamWriter? Sw { get; set; }
-        public static StreamWriter? ExportFileSw { get; set; }
+    internal static class Program {
+        private static StreamWriter? Sw { get; set; }
+        private static StreamWriter? ExportFileSw { get; set; }
 
         private static void Main(string[] args) {
             if (args.Length > 0) {
@@ -14,19 +14,19 @@ namespace oSQL {
                 option.Setup(args);
                 PrepareLogAndExportFile(option);
 
-                var sql_connection_string = PrepareConnectionString(option);
-                if (option.RenewDB) DropAndCreateNewDB(sql_connection_string, option);
+                var sqlConnectionString = PrepareConnectionString(option);
+                if (option.RenewDB) DropAndCreateNewDb(sqlConnectionString, option);
                 if (!string.IsNullOrEmpty(option.SqlFolder)) {
                     var dir = new DirectoryInfo(option.SqlFolder);
                     if (dir.Exists)
-                        RunAllSqlScripts(dir, option, sql_connection_string);
+                        RunAllSqlScripts(dir, option, sqlConnectionString);
                 } else if (string.IsNullOrEmpty(option.SqlPath)) {
                     var file = new FileInfo(option.SqlPath);
                     if (file.Exists) {
                         if (string.IsNullOrEmpty(option.ExportPath))
-                            ExecuteSqlFile(file, sql_connection_string, option);
+                            ExecuteSqlFile(file, sqlConnectionString, option);
                         else
-                            ExportData(file, sql_connection_string, option);
+                            ExportData(file, sqlConnectionString, option);
                     }
                 }
 
@@ -37,12 +37,14 @@ namespace oSQL {
                 ShowHelp();
         }
 
-        private static void ExportData(FileInfo sqlFile, string sql_connection_string, Option option) {
+        private static void ExportData(FileInfo sqlFile, string sqlConnectionString, Option option)
+        {
             if (ExportFileSw is null)
-                throw new ArgumentNullException("You didn't specify a file path for exporting!", "exportFile");
-            var sql = $"USE [{option.DestDatabase}]\n" + ReadSql(sqlFile);
+                throw new ArgumentNullException(nameof(sqlFile), "You didn't specify a file path for exporting!");
+            var sql = // $"USE [{option.DestDatabase}]\n" + 
+                      ReadSql(sqlFile);
             CodeScan(sql);
-            using var conn = new SqlConnection(sql_connection_string);
+            using var conn = new SqlConnection(sqlConnectionString);
             var cmd = conn.CreateCommand();
             cmd.CommandType = CommandType.Text;
             cmd.CommandText = sql;
@@ -61,16 +63,16 @@ namespace oSQL {
             }
         }
 
-        private static void ExecuteSqlFile(FileInfo sqlFile, string sql_connection_string, Option option) {
-            var sql_script_content = $"USE [{option.DestDatabase}]\n" + ReadSql(sqlFile);
+        private static void ExecuteSqlFile(FileInfo sqlFile, string sqlConnectionString, Option option) {
+            var sqlScriptContent = $"USE [{option.DestDatabase}]\n" + ReadSql(sqlFile);
 
-            bool has_error = false;
+            var hasError = false;
             while (true) {
-                var encounter_error = 0;
+                var encounterError = 0;
                 try {
-                    using var conn = new SqlConnection(sql_connection_string);
+                    using var conn = new SqlConnection(sqlConnectionString);
                     conn.Open();
-                    foreach (var sql in sql_script_content.Split('\t'))
+                    foreach (var sql in sqlScriptContent.Split('\t'))
                         try {
                             if (string.IsNullOrEmpty(sql)) continue;
 
@@ -81,15 +83,15 @@ namespace oSQL {
                             cmd.ExecuteNonQuery();
                         } catch (Exception ex) {
                             LogMessage("ERROR : " + sqlFile.FullName + " : " + ex.Message);
-                            has_error = true;
+                            hasError = true;
                         }
                     conn.Close();
                     break;
                 } catch (SqlException sqlEx) {
                     LogMessage("ERROR : " + sqlEx.Message);
-                    if (encounter_error < 3) {
+                    if (encounterError < 3) {
                         LogMessage("Encounter SQL error, wait 5 seconds and retry....");
-                        encounter_error++;
+                        encounterError++;
                         Thread.Sleep(5 * 1000);
                     } else
                         throw;
@@ -98,23 +100,23 @@ namespace oSQL {
         }
 
         private static void RunAllSqlScripts(DirectoryInfo dir, Option option, string connectionString) {
-			var sql_files = dir.GetFiles ("*.sql").OrderBy (d => d.Name);
-			foreach (var file in sql_files)
+			var sqlFiles = dir.GetFiles ("*.sql").OrderBy (d => d.Name);
+			foreach (var file in sqlFiles)
 				ExecuteSqlFile (file, connectionString, option);
 
-            var sub_dirs = dir.GetDirectories ().OrderBy (d => d.Name);
-            if (sub_dirs.Any())
-                foreach (var sub in sub_dirs)
-                    RunAllSqlScripts(sub, option, connectionString);
+            var subDirs = dir.GetDirectories ().OrderBy (d => d.Name).ToList();
+            if (!subDirs.Any()) return;
+            foreach (var sub in subDirs)
+                RunAllSqlScripts(sub, option, connectionString);
         }
 
-        private static void DropAndCreateNewDB(string sql_connection_string, Option option) {
-            ExecuteSql(sql_connection_string, $"IF DB_ID('{option.DestDatabase}') IS NOT NULL\nDROP DATABASE [{option.DestDatabase}]");
-            ExecuteSql(sql_connection_string, $"CREATE DATABASE [{option.DestDatabase}]");
+        private static void DropAndCreateNewDb(string sqlConnectionString, Option option) {
+            ExecuteSql(sqlConnectionString, $"IF DB_ID('{option.DestDatabase}') IS NOT NULL\nDROP DATABASE [{option.DestDatabase}]");
+            ExecuteSql(sqlConnectionString, $"CREATE DATABASE [{option.DestDatabase}]");
         }
 
-        private static void ExecuteSql(string sql_connection_string, string sql) {
-            using var conn = new SqlConnection(sql_connection_string);
+        private static void ExecuteSql(string sqlConnectionString, string sql) {
+            using var conn = new SqlConnection(sqlConnectionString);
             using var cmd = conn.CreateCommand();
             cmd.CommandType = CommandType.Text;
             cmd.CommandText = sql;
@@ -126,8 +128,8 @@ namespace oSQL {
 
         private static string PrepareConnectionString(Option option) {
             return option.EnableIntegratedSecurity
-                ? $"Data Source={option.ServerIp};Initial Catalog=master;Persist Security Info=True;Integrated Security=True"
-                : $"Data Source={option.ServerIp};Initial Catalog=master;Persist Security Info=True;User ID={option.DbAccount};Password={option.DbPassword}";
+                ? $"Data Source={option.ServerIp};Initial Catalog={option.DestDatabase};Persist Security Info=True;Integrated Security=True"
+                : $"Data Source={option.ServerIp};Initial Catalog={option.DestDatabase};Persist Security Info=True;User ID={option.DbAccount};Password={option.DbPassword}";
         }
 
         private static void OutputResultToExportFile(SqlCommand cmd) {
@@ -163,7 +165,7 @@ namespace oSQL {
 
         private static void WriteTheColumnLine(DataTable dt) {
             for (var i = 0; i < dt.Columns.Count; i++) {
-                DataColumn c = dt.Columns[i];
+                var c = dt.Columns[i];
                 if (0 == i)
                     ExportFileSw?.Write("\"" + c.ColumnName + "\"");
                 else
@@ -177,7 +179,6 @@ namespace oSQL {
         /// </summary>
         /// <param name="sql">sql want to be scanned</param>
         private static void CodeScan(string sql) {
-
             #region security check
 
             var tmp = sql.ToUpper();
@@ -204,21 +205,21 @@ namespace oSQL {
         }
 
         private static string ReadSql(FileInfo sqlFile) {
-            string? sql_script_content = null;
-            LogMessage(string.Format("Processing object for {0} ......", sqlFile.FullName));
+            string? sqlScriptContent;
+            LogMessage($"Processing object for {sqlFile.FullName} ......");
             using (var sr = sqlFile.OpenText()) {
-                sql_script_content = sr.ReadToEnd();
+                sqlScriptContent = sr.ReadToEnd();
                 sr.Close();
             }
             // normalize content
-            sql_script_content = sql_script_content.Replace("\t", " ").Replace("\r", string.Empty);
-            sql_script_content = sql_script_content.Replace($"GO\n", "\t").Replace($"go\n", "\t");
-            if (sql_script_content.EndsWith("GO"))
-                sql_script_content = sql_script_content[..^"GO".Length];
-            if (sql_script_content.EndsWith("go"))
-                sql_script_content = sql_script_content[..^"go".Length];
+            sqlScriptContent = sqlScriptContent.Replace("\t", " ").Replace("\r", string.Empty);
+            sqlScriptContent = sqlScriptContent.Replace("GO\n", "\t").Replace($"go\n", "\t");
+            if (sqlScriptContent.EndsWith("GO"))
+                sqlScriptContent = sqlScriptContent[..^"GO".Length];
+            if (sqlScriptContent.EndsWith("go"))
+                sqlScriptContent = sqlScriptContent[..^"go".Length];
 
-            return sql_script_content.Trim();
+            return sqlScriptContent.Trim();
         }
 
         private static void LogMessage(string message) {
@@ -230,13 +231,13 @@ namespace oSQL {
             Console.WriteLine ("**oSQL.exe**");
             Console.WriteLine (" License: Apache 2.0");
             Console.WriteLine (" Author: Tom Tang <tomtang0406@gmail.com>");
-            Console.WriteLine (" Runtime: dotnet standard 6.0");
-            Console.WriteLine (" Version: 2.0.0.1");
+            Console.WriteLine (" Runtime: dotnet 6.0");
+            Console.WriteLine (" Version: 2.0.0.2");
             Console.WriteLine ("==========================================");
             Console.WriteLine ("Usage:");
             Console.WriteLine ("oSQL.exe -s [Server IP] [-is:use integrated security| -u <account> -p <password>] -o [log file path] [-i <sql script file path> | -dir <folder path contains sql files>] [-renew: drop destination database and re-create] -d [destination database] -e [export file path]");
             Console.WriteLine ("Sample:");
-            Console.WriteLine ("OSQL.exe -s .\\SQLEXPRESS -U sa -P p@ssw0rd  -o .\\CPBU_SQLDEPLOY.LOG -i \"database\\10_tables\\00.table_create.sql\" -d SampleDB");
+            Console.WriteLine ("OSQL.exe -s .\\SQLEXPRESS -u sa -p p@ssw0rd  -o .\\CPBU_SQLDEPLOY.LOG -i \"database\\10_tables\\00.table_create.sql\" -d SampleDB");
             Console.WriteLine ("OSQL.exe -s .\\SQLEXPRESS -is  -o .\\log.log -i \"database\\10_tables\\00.table_create.sql\" -d SampleDB");
             Console.WriteLine ("OSQL.exe -s .\\SQLEXPRESS -is  -o .\\log.log -dir \"database\" -renew -d SampleDB");
         }
