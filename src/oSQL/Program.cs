@@ -4,27 +4,30 @@ using System.Text;
 
 namespace oSQL {
 
-    internal static class Program {
+    internal static class Program
+    {
+        private const int MaxCount = 10;
+        private static readonly SemaphoreSlim Semaphore = new(MaxCount, MaxCount);
         private static StreamWriter? Sw { get; set; }
         private static StreamWriter? ExportFileSw { get; set; }
 
-        private static void Main(string[] args) {
+        private static async Task Main(string[] args) {
             if (args.Length > 0) {
                 var option = new Option();
                 option.Setup(args);
                 PrepareLogAndExportFile(option);
 
                 var sqlConnectionString = PrepareConnectionString(option);
-                if (option.RenewDB) DropAndCreateNewDb(sqlConnectionString, option);
+                if (option.RenewDB) await DropAndCreateNewDb(sqlConnectionString, option);
                 if (!string.IsNullOrEmpty(option.SqlFolder)) {
                     var dir = new DirectoryInfo(option.SqlFolder);
                     if (dir.Exists)
-                        RunAllSqlScripts(dir, option, sqlConnectionString);
+                        await RunAllSqlScripts(dir, option, sqlConnectionString);
                 } else if (string.IsNullOrEmpty(option.SqlPath)) {
                     var file = new FileInfo(option.SqlPath);
                     if (file.Exists) {
                         if (string.IsNullOrEmpty(option.ExportPath))
-                            ExecuteSqlFile(file, sqlConnectionString, option);
+                            await ExecuteSqlFile(file, sqlConnectionString, option);
                         else
                             ExportData(file, sqlConnectionString, option);
                     }
@@ -39,17 +42,17 @@ namespace oSQL {
 
         private static void ExportData(FileInfo sqlFile, string sqlConnectionString, Option option)
         {
-            if (ExportFileSw is null)
-                throw new ArgumentNullException(nameof(sqlFile), "You didn't specify a file path for exporting!");
-            var sql = // $"USE [{option.DestDatabase}]\n" + 
-                      ReadSql(sqlFile);
-            CodeScan(sql);
-            using var conn = new SqlConnection(sqlConnectionString);
-            var cmd = conn.CreateCommand();
-            cmd.CommandType = CommandType.Text;
-            cmd.CommandText = sql;
-            cmd.CommandTimeout = 0;
-            OutputResultToExportFile(cmd);
+            // if (ExportFileSw is null)
+            //     throw new ArgumentNullException(nameof(sqlFile), "You didn't specify a file path for exporting!");
+            // var sql = // $"USE [{option.DestDatabase}]\n" + 
+            //           ReadSql(sqlFile);
+            // CodeScan(sql);
+            // using var conn = new SqlConnection(sqlConnectionString);
+            // var cmd = conn.CreateCommand();
+            // cmd.CommandType = CommandType.Text;
+            // cmd.CommandText = sql;
+            // cmd.CommandTimeout = 0;
+            // OutputResultToExportFile(cmd);
         }
 
         private static void Dispose() {
@@ -57,73 +60,83 @@ namespace oSQL {
                 Sw.Close();
                 Sw.Dispose();
             }
-            if (ExportFileSw is not null) {
-                ExportFileSw.Close();
-                ExportFileSw.Dispose();
-            }
+
+            if (ExportFileSw is null) return;
+            ExportFileSw.Close();
+            ExportFileSw.Dispose();
         }
 
-        private static void ExecuteSqlFile(FileInfo sqlFile, string sqlConnectionString, Option option) {
-            var sqlScriptContent = $"USE [{option.DestDatabase}]\n" + ReadSql(sqlFile);
+        private static async Task ExecuteSqlFile(FileInfo sqlFile, string sqlConnectionString, Option option) {
+            // var sqlScriptContent = $"USE [{option.DestDatabase}]\n" + ReadSql(sqlFile);
 
-            var hasError = false;
-            while (true) {
-                var encounterError = 0;
-                try {
-                    using var conn = new SqlConnection(sqlConnectionString);
-                    conn.Open();
-                    foreach (var sql in sqlScriptContent.Split('\t'))
-                        try {
-                            if (string.IsNullOrEmpty(sql)) continue;
-
-                            using var cmd = conn.CreateCommand();
-                            cmd.CommandType = CommandType.Text;
-                            cmd.CommandText = sql;
-                            cmd.CommandTimeout = 0;
-                            cmd.ExecuteNonQuery();
-                        } catch (Exception ex) {
+            await Semaphore.WaitAsync();
+            try
+            {
+                var sr = ReadSql(sqlFile);
+                var hasError = false;
+                var sql = (await sr.ReadLineAsync())?.Trim();
+                var sb = new StringBuilder();
+                while (!sr.EndOfStream)
+                {
+                    if (string.Compare(sql, "GO", StringComparison.OrdinalIgnoreCase) == 0)
+                    {
+                        var sqlScript = sb.ToString();
+                        try
+                        {
+                            await ExecuteSql(sqlConnectionString, sqlScript);
+                        }
+                        catch (Exception ex)
+                        {
                             LogMessage("ERROR : " + sqlFile.FullName + " : " + ex.Message);
                             hasError = true;
+                            throw;
                         }
-                    conn.Close();
-                    break;
-                } catch (SqlException sqlEx) {
-                    LogMessage("ERROR : " + sqlEx.Message);
-                    if (encounterError < 3) {
-                        LogMessage("Encounter SQL error, wait 5 seconds and retry....");
-                        encounterError++;
-                        Thread.Sleep(5 * 1000);
-                    } else
-                        throw;
+                        finally
+                        {
+                            sb.Clear();
+                        }
+                    }
+                    else
+                    {
+                        sb.AppendLine(sql);
+                    }
+
+                    sql = (await sr.ReadLineAsync())?.Trim();
                 }
+            }
+            finally
+            {
+                Semaphore.Release();
+                Console.WriteLine(
+                    $"The sql file[{sqlFile.Name}] has been done, there're {MaxCount - Semaphore.CurrentCount} tasks still running...");
             }
         }
 
-        private static void RunAllSqlScripts(DirectoryInfo dir, Option option, string connectionString) {
+        private static async Task RunAllSqlScripts(DirectoryInfo dir, Option option, string connectionString) {
 			var sqlFiles = dir.GetFiles ("*.sql").OrderBy (d => d.Name);
-			foreach (var file in sqlFiles)
-				ExecuteSqlFile (file, connectionString, option);
+            var tasks = sqlFiles.Select(file => ExecuteSqlFile(file, connectionString, option)).ToArray();
+            Task.WaitAll(tasks);
 
             var subDirs = dir.GetDirectories ().OrderBy (d => d.Name).ToList();
             if (!subDirs.Any()) return;
             foreach (var sub in subDirs)
-                RunAllSqlScripts(sub, option, connectionString);
+                await RunAllSqlScripts(sub, option, connectionString);
         }
 
-        private static void DropAndCreateNewDb(string sqlConnectionString, Option option) {
-            ExecuteSql(sqlConnectionString, $"IF DB_ID('{option.DestDatabase}') IS NOT NULL\nDROP DATABASE [{option.DestDatabase}]");
-            ExecuteSql(sqlConnectionString, $"CREATE DATABASE [{option.DestDatabase}]");
+        private static async Task DropAndCreateNewDb(string sqlConnectionString, Option option) {
+            await ExecuteSql(sqlConnectionString, $"IF DB_ID('{option.DestDatabase}') IS NOT NULL\nDROP DATABASE [{option.DestDatabase}]");
+            await ExecuteSql(sqlConnectionString, $"CREATE DATABASE [{option.DestDatabase}]");
         }
 
-        private static void ExecuteSql(string sqlConnectionString, string sql) {
-            using var conn = new SqlConnection(sqlConnectionString);
-            using var cmd = conn.CreateCommand();
+        private static async Task ExecuteSql(string sqlConnectionString, string sql) {
+            await using var conn = new SqlConnection(sqlConnectionString);
+            await using var cmd = conn.CreateCommand();
             cmd.CommandType = CommandType.Text;
             cmd.CommandText = sql;
             cmd.CommandTimeout = 0;
-            conn.Open();
-            cmd.ExecuteNonQuery();
-            conn.Close();
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+            await conn.CloseAsync();
         }
 
         private static string PrepareConnectionString(Option option) {
@@ -146,16 +159,17 @@ namespace oSQL {
         private static void WriteResultToFile(DataTable dt) {
             foreach (DataRow dr in dt.Rows) {
                 List<string> ss = new();
-                for (var i = 0; i < dt.Columns.Count; i++) {
+                for (var i = 0; i < dt.Columns.Count; i++)
+                {
                     var obj = dr[dt.Columns[i].ColumnName];
-                    if (obj is not null) {
+                    {
                         var t = obj.GetType();
                         if (t == typeof(DateTime))
-                            ss.Add(string.Format("\"{0}\"", ((DateTime)obj).ToShortDateString()));
+                            ss.Add($"\"{((DateTime)obj).ToShortDateString()}\"");
                         else if (double.TryParse(obj.ToString(), out _))
                             ss.Add(obj.ToString() ?? string.Empty);
                         else
-                            ss.Add(string.Format("\"{0}\"", (obj.ToString() ?? string.Empty).Replace("\"", "\"\"")));
+                            ss.Add($"\"{(obj.ToString() ?? string.Empty).Replace("\"", "\"\"")}\"");
                     }
                 }
                 var s = string.Join<string>(",", ss.ToArray());
@@ -204,22 +218,9 @@ namespace oSQL {
             }
         }
 
-        private static string ReadSql(FileInfo sqlFile) {
-            string? sqlScriptContent;
-            LogMessage($"Processing object for {sqlFile.FullName} ......");
-            using (var sr = sqlFile.OpenText()) {
-                sqlScriptContent = sr.ReadToEnd();
-                sr.Close();
-            }
-            // normalize content
-            sqlScriptContent = sqlScriptContent.Replace("\t", " ").Replace("\r", string.Empty);
-            sqlScriptContent = sqlScriptContent.Replace("GO\n", "\t").Replace($"go\n", "\t");
-            if (sqlScriptContent.EndsWith("GO"))
-                sqlScriptContent = sqlScriptContent[..^"GO".Length];
-            if (sqlScriptContent.EndsWith("go"))
-                sqlScriptContent = sqlScriptContent[..^"go".Length];
-
-            return sqlScriptContent.Trim();
+        private static StreamReader ReadSql(FileInfo sqlFile) {
+            Console.WriteLine($"Processing object for {sqlFile.FullName} ......");
+            return sqlFile.OpenText();
         }
 
         private static void LogMessage(string message) {
@@ -232,7 +233,7 @@ namespace oSQL {
             Console.WriteLine (" License: Apache 2.0");
             Console.WriteLine (" Author: Tom Tang <tomtang0406@gmail.com>");
             Console.WriteLine (" Runtime: dotnet 6.0");
-            Console.WriteLine (" Version: 2.0.0.2");
+            Console.WriteLine (" Version: 2.0.0.3");
             Console.WriteLine ("==========================================");
             Console.WriteLine ("Usage:");
             Console.WriteLine ("oSQL.exe -s [Server IP] [-is:use integrated security| -u <account> -p <password>] -o [log file path] [-i <sql script file path> | -dir <folder path contains sql files>] [-renew: drop destination database and re-create] -d [destination database] -e [export file path]");
