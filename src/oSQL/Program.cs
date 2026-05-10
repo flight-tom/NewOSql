@@ -18,16 +18,16 @@ namespace oSQL {
                 PrepareLogAndExportFile(option);
 
                 var sqlConnectionString = PrepareConnectionString(option);
-                if (option.RenewDB) await DropAndCreateNewDb(sqlConnectionString, option);
+                if (option.RenewDB) await DropAndCreateNewDbAsync(sqlConnectionString, option);
                 if (!string.IsNullOrEmpty(option.SqlFolder)) {
                     var dir = new DirectoryInfo(option.SqlFolder);
                     if (dir.Exists)
-                        await RunAllSqlScripts(dir, option, sqlConnectionString);
+                        await RunAllSqlScriptsAsync(dir, option, sqlConnectionString);
                 } else if (string.IsNullOrEmpty(option.SqlPath)) {
                     var file = new FileInfo(option.SqlPath);
                     if (file.Exists) {
                         if (string.IsNullOrEmpty(option.ExportPath))
-                            await ExecuteSqlFile(file, sqlConnectionString, option);
+                            await ExecuteSqlFileAsync(file, sqlConnectionString, option);
                         else
                             ExportData(file, sqlConnectionString, option);
                     }
@@ -66,7 +66,7 @@ namespace oSQL {
             ExportFileSw.Dispose();
         }
 
-        private static async Task ExecuteSqlFile(FileInfo sqlFile, string sqlConnectionString, Option option) {
+        private static async Task ExecuteSqlFileAsync(FileInfo sqlFile, string sqlConnectionString, Option option) {
             // var sqlScriptContent = $"USE [{option.DestDatabase}]\n" + ReadSql(sqlFile);
 
             await Semaphore.WaitAsync();
@@ -75,6 +75,10 @@ namespace oSQL {
                 var sr = ReadSql(sqlFile);
                 var hasError = false;
                 var sql = (await sr.ReadLineAsync())?.Trim();
+                var fileNameSegments = sqlFile.Name.Split('.');
+                var tableName = $"[{fileNameSegments[0]}].[{fileNameSegments[1]}]";
+                var needIdentityInsertionHandling = false;
+                var identityStatement = $"SET IDENTITY_INSERT {tableName} ON";
                 var sb = new StringBuilder();
                 while (!sr.EndOfStream)
                 {
@@ -83,7 +87,7 @@ namespace oSQL {
                         var sqlScript = sb.ToString();
                         try
                         {
-                            await ExecuteSql(sqlConnectionString, sqlScript);
+                            await ExecuteSqlAsync(sqlConnectionString, sqlScript);
                         }
                         catch (Exception ex)
                         {
@@ -94,7 +98,15 @@ namespace oSQL {
                         finally
                         {
                             sb.Clear();
+                            if (needIdentityInsertionHandling)
+                                sb.AppendLine(identityStatement);
                         }
+                    }
+                    else if (!string.IsNullOrEmpty(sql) && sql.StartsWith("SET IDENTITY_INSERT"))
+                    {
+                        needIdentityInsertionHandling = true;
+                        sb.AppendLine(identityStatement);
+                        Console.WriteLine(identityStatement);
                     }
                     else
                     {
@@ -102,6 +114,20 @@ namespace oSQL {
                     }
 
                     sql = (await sr.ReadLineAsync())?.Trim();
+                }
+                
+                // execute the last sql statement at ending of the file.
+                try
+                {
+                    var sqlScript = sb.ToString();
+                    if (!string.IsNullOrWhiteSpace(sqlScript))
+                        await ExecuteSqlAsync(sqlConnectionString, sqlScript);
+                }
+                catch (Exception ex)
+                {
+                    LogMessage("ERROR : " + sqlFile.FullName + " : " + ex.Message);
+                    hasError = true;
+                    throw;
                 }
             }
             finally
@@ -112,23 +138,23 @@ namespace oSQL {
             }
         }
 
-        private static async Task RunAllSqlScripts(DirectoryInfo dir, Option option, string connectionString) {
+        private static async Task RunAllSqlScriptsAsync(DirectoryInfo dir, Option option, string connectionString) {
 			var sqlFiles = dir.GetFiles ("*.sql").OrderBy (d => d.Name);
-            var tasks = sqlFiles.Select(file => ExecuteSqlFile(file, connectionString, option)).ToArray();
+            var tasks = sqlFiles.Select(file => ExecuteSqlFileAsync(file, connectionString, option)).ToArray();
             Task.WaitAll(tasks);
 
             var subDirs = dir.GetDirectories ().OrderBy (d => d.Name).ToList();
             if (!subDirs.Any()) return;
             foreach (var sub in subDirs)
-                await RunAllSqlScripts(sub, option, connectionString);
+                await RunAllSqlScriptsAsync(sub, option, connectionString);
         }
 
-        private static async Task DropAndCreateNewDb(string sqlConnectionString, Option option) {
-            await ExecuteSql(sqlConnectionString, $"IF DB_ID('{option.DestDatabase}') IS NOT NULL\nDROP DATABASE [{option.DestDatabase}]");
-            await ExecuteSql(sqlConnectionString, $"CREATE DATABASE [{option.DestDatabase}]");
+        private static async Task DropAndCreateNewDbAsync(string sqlConnectionString, Option option) {
+            await ExecuteSqlAsync(sqlConnectionString, $"IF DB_ID('{option.DestDatabase}') IS NOT NULL\nDROP DATABASE [{option.DestDatabase}]");
+            await ExecuteSqlAsync(sqlConnectionString, $"CREATE DATABASE [{option.DestDatabase}]");
         }
 
-        private static async Task ExecuteSql(string sqlConnectionString, string sql) {
+        private static async Task ExecuteSqlAsync(string sqlConnectionString, string sql) {
             await using var conn = new SqlConnection(sqlConnectionString);
             await using var cmd = conn.CreateCommand();
             cmd.CommandType = CommandType.Text;
@@ -211,11 +237,10 @@ namespace oSQL {
                 Sw = logFile.CreateText();
             }
 
-            if (!string.IsNullOrEmpty(option.ExportPath)) {
-                var exportFile = new FileInfo(option.ExportPath);
-                if (exportFile.Exists) exportFile.Delete();
-                ExportFileSw = new StreamWriter(exportFile.Create(), Encoding.Default);
-            }
+            if (string.IsNullOrEmpty(option.ExportPath)) return;
+            var exportFile = new FileInfo(option.ExportPath);
+            if (exportFile.Exists) exportFile.Delete();
+            ExportFileSw = new StreamWriter(exportFile.Create(), Encoding.Default);
         }
 
         private static StreamReader ReadSql(FileInfo sqlFile) {
